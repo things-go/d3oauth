@@ -2,9 +2,21 @@ package webchat
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha1"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 
 	"github.com/things-go/tpoauth/errcode"
+)
+
+// error defined
+var (
+	ErrInvalidIvSize       = errors.New("iv length must equal block size")
+	ErrUnPaddingOutOfRange = errors.New("unPadding out of range")
 )
 
 const miniProgramCode2Session = "https://api.weixin.qq.com/sns/jscode2session"
@@ -41,4 +53,46 @@ func (sf *Client) MiniProgramCode2Session(ctx context.Context, code string) (*Mi
 		return nil, &errcode.ErrCode{Status: resp.StatusCode(), Code: result.ErrCode, Msg: result.ErrMsg}
 	}
 	return result, err
+}
+
+func MiniProgramVerifySign(sessionKey, rawData, signature string) bool {
+	vv := sha1.Sum([]byte(rawData + sessionKey))
+	return signature == hex.EncodeToString(vv[:])
+}
+
+func MiniProgramDecrypt(sessionKey, encryptedData, biv string) ([]byte, error) {
+	sk, err := base64.StdEncoding.DecodeString(sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	cipherText, err := base64.StdEncoding.DecodeString(encryptedData)
+	if err != nil {
+		return nil, err
+	}
+	iv, err := base64.StdEncoding.DecodeString(biv)
+	if err != nil {
+		return nil, err
+	}
+	cip, err := aes.NewCipher(sk)
+	if err != nil {
+		return nil, err
+	}
+	if len(iv) != cip.BlockSize() {
+		return nil, ErrInvalidIvSize
+	}
+	cipher.NewCBCDecrypter(cip, iv).CryptBlocks(cipherText, cipherText)
+	return PCKSUnPadding(cipherText)
+}
+
+// PCKSUnPadding PKCS#5和PKCS#7 解填充
+func PCKSUnPadding(origData []byte) ([]byte, error) {
+	length := len(origData)
+	if length == 0 {
+		return nil, ErrUnPaddingOutOfRange
+	}
+	unPadSize := int(origData[length-1])
+	if unPadSize > length {
+		return nil, ErrUnPaddingOutOfRange
+	}
+	return origData[:(length - unPadSize)], nil
 }
