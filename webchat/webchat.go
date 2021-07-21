@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
-	"github.com/things-go/tpoauth/errcode"
+	"github.com/things-go/tpo/errcode"
 )
 
 const (

@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/things-go/tpoauth/errcode"
+	"github.com/things-go/tpo/errcode"
 )
 
 // error defined
